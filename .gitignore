@@ -1,0 +1,27 @@
+.pio/
+.pio-core/
+.DS_Store
+Thumbs.db
+
+agent/.env
+agent/.venv/
+agent/cache/
+agent/logs/
+agent/**/__pycache__/
+
+firmware/config/network_secrets.h
+
+# Local and generated artifacts
+.pytest_cache/
+**/__pycache__/
+*.py[cod]
+*.log
+*.wav
+*.pcm
+.vscode/
+**/.env
+
+# Design materials excluded from the source commit
+Mimi工程最终方案书.md
+hardware/
+硬件文档/

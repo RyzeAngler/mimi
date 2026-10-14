@@ -20,8 +20,3 @@ firmware/config/network_secrets.h
 *.pcm
 .vscode/
 **/.env
-
-# Design materials excluded from the source commit
-Mimi工程最终方案书.md
-hardware/
-硬件文档/

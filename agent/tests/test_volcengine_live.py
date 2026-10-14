@@ -1,7 +1,5 @@
 """Opt-in live verification of the persistent bidirectional TTS path."""
 
-from __future__ import annotations
-
 import os
 
 import pytest

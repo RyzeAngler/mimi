@@ -1,7 +1,5 @@
 """Volcengine Ark Chat Completions client in SSE streaming mode."""
 
-from __future__ import annotations
-
 import json
 import logging
 from collections.abc import AsyncIterator
@@ -69,12 +67,10 @@ class VolcengineArkClient(LlmClient):
 
         self.settings.validate_llm()
         logger.info(
-            "LLM request started provider=volcengine_ark model=%s "
-            "event=%s behavior=%s intensity=%.3f mode=streaming",
-            self.settings.ark_model,
-            request.event,
-            request.behavior,
-            request.intensity,
+            f"LLM request started provider=volcengine_ark "
+            f"model={self.settings.ark_model} event={request.event} "
+            f"behavior={request.behavior} intensity={request.intensity:.3f} "
+            "mode=streaming"
         )
         try:
             async with self._client.stream(
@@ -130,9 +126,8 @@ class VolcengineArkClient(LlmClient):
                 if not yielded:
                     raise LlmProviderError("Ark returned empty streamed text")
                 logger.info(
-                    "LLM stream completed provider=volcengine_ark model=%s chars=%d",
-                    self.settings.ark_model,
-                    total_chars,
+                    f"LLM stream completed provider=volcengine_ark "
+                    f"model={self.settings.ark_model} chars={total_chars}"
                 )
         except httpx.HTTPError as exc:
             raise LlmProviderError(f"Ark transport failed: {exc}") from exc

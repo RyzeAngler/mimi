@@ -1,7 +1,5 @@
 """Determine which physical actions should trigger an LLM speech turn."""
 
-from __future__ import annotations
-
 import time
 from dataclasses import dataclass
 
@@ -54,6 +52,13 @@ class SpeechPolicy:
         "sleepy": 20,
     }
 
+    _MIN_CONFIDENCE = 0.4
+    _MIN_INTENSITY = 0.05
+    _MIN_MOTION_DURATION_MS = 100
+    _MIN_PEAK_ANGULAR_SPEED_DPS = 20.0
+    _MIN_PEAK_DYNAMIC_ACCELERATION_G = 0.05
+    _MIN_TILT_STRENGTH = 0.08
+
     def __init__(
         self,
         default_cooldown_ms: int = 2500,
@@ -63,11 +68,17 @@ class SpeechPolicy:
         self.dizzy_cooldown_ms = dizzy_cooldown_ms
         self._last_spoken_at: dict[str, float] = {}
 
-    def decide(self, event: PhysicalEvent, now: float | None = None) -> SpeechDecision | None:
+    def decide(
+        self,
+        event: PhysicalEvent,
+        now: float | None = None,
+    ) -> SpeechDecision | None:
         key = self._canonical_key(event)
         if key not in self._SPEECH_KEYS:
             key = event.behavior.lower()
         if key not in self._SPEECH_KEYS:
+            return None
+        if not self._has_motion_evidence(event, key):
             return None
 
         cooldown_ms = (
@@ -84,6 +95,26 @@ class SpeechPolicy:
             key=key,
             priority=self._PRIORITIES.get(key, 1),
             cooldown_ms=cooldown_ms,
+        )
+
+    @classmethod
+    def _has_motion_evidence(cls, event: PhysicalEvent, key: str) -> bool:
+        if key == "touch":
+            return True
+        if event.summary is None:
+            return True
+        summary = event.summary
+        if 0.0 < summary.confidence < cls._MIN_CONFIDENCE:
+            return False
+        return any(
+            (
+                event.intensity >= cls._MIN_INTENSITY,
+                summary.motion_duration_ms >= cls._MIN_MOTION_DURATION_MS,
+                summary.peak_angular_speed_dps >= cls._MIN_PEAK_ANGULAR_SPEED_DPS,
+                summary.peak_dynamic_acceleration_g
+                >= cls._MIN_PEAK_DYNAMIC_ACCELERATION_G,
+                summary.tilt_strength >= cls._MIN_TILT_STRENGTH,
+            )
         )
 
     @staticmethod

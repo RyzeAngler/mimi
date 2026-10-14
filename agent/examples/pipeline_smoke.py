@@ -1,7 +1,5 @@
 """Run one live Ark -> bidirectional TTS turn and save a playable WAV."""
 
-from __future__ import annotations
-
 import asyncio
 import os
 import wave

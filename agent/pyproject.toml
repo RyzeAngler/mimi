@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Mimi desktop AI pet Agent and streaming speech service"
 requires-python = ">=3.11"
 dependencies = [
+  "aiohttp>=3.10,<4",
   "httpx>=0.27,<1",
   "python-dotenv>=1.0,<2",
   "websockets>=15,<16",
@@ -25,6 +26,13 @@ asyncio_mode = "auto"
 markers = [
   "integration: calls the live Volcengine TTS API using local credentials",
 ]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I"]
 
 [tool.setuptools.packages.find]
 where = ["src"]

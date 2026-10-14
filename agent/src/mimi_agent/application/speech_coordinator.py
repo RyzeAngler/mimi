@@ -1,7 +1,5 @@
 """Coordinate physical events, streaming LLM, TTS and device output."""
 
-from __future__ import annotations
-
 import asyncio
 import logging
 import time
@@ -20,7 +18,7 @@ from mimi_agent.agent_core.prompt import SYSTEM_PROMPT, build_event_prompt
 from mimi_agent.audio.pcm import PcmFormat
 from mimi_agent.behavior.event_router import EventRouter
 from mimi_agent.device.session import DeviceSession
-from mimi_agent.observability import LocalLog
+from mimi_agent.observability.logging import LocalLog
 from mimi_agent.protocol.codec import (
     encode_motion_ack,
     encode_speech_cancel,
@@ -219,12 +217,12 @@ class SpeechCoordinator:
             timeline.completed_at = time.perf_counter()
             elapsed = (timeline.completed_at - timeline.event_at) * 1000
             self.local_log.speech(speech_id, text_state.full, elapsed)
-            logger.info("语音已完成：第%s轮，内容是“%s”。", speech_id, text_state.full)
+            logger.info(f"语音已完成：第{speech_id}轮，内容是“{text_state.full}”。")
         except asyncio.CancelledError:
-            logger.info("语音已取消：第%s轮。", speech_id)
+            logger.info(f"语音已取消：第{speech_id}轮。")
             raise
         except Exception as exc:
-            logger.exception("语音处理失败：第%s轮。", speech_id)
+            logger.exception(f"语音处理失败：第{speech_id}轮：{exc}")
             with suppress(Exception):
                 await session.send_json(
                     encode_speech_error(speech_id, str(exc), event.event_id)

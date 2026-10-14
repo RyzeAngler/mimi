@@ -1,7 +1,5 @@
 """Bounded conversation context for one Mimi device session."""
 
-from __future__ import annotations
-
 from collections import deque
 from dataclasses import dataclass
 

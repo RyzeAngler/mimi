@@ -50,6 +50,8 @@ class AgentWebSocket {
   void handle_speech_stop(const char* speech_id, const char* event_id,
                           const char* reason);
   void handle_motion_ack(const char* event_id, bool will_speak);
+  void send_speech_ready();
+  void send_speech_playback_end();
   void send_hello();
 
   WifiManager& wifi_;

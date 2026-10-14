@@ -1,7 +1,5 @@
 """Provider-neutral streaming LLM boundary for short Mimi speech turns."""
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Literal, Protocol

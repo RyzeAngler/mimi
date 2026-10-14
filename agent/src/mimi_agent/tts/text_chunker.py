@@ -1,7 +1,5 @@
 """Bounded-latency text segmentation for a single TTS session."""
 
-from __future__ import annotations
-
 import asyncio
 import contextlib
 from collections.abc import AsyncIterator

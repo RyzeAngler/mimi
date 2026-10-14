@@ -1,7 +1,5 @@
 """JSON control frames and binary PCM frame metadata."""
 
-from __future__ import annotations
-
 import json
 from typing import Any
 

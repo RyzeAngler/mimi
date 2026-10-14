@@ -1,7 +1,5 @@
 """Binary framing for Volcengine V3 bidirectional TTS WebSockets."""
 
-from __future__ import annotations
-
 import gzip
 import json
 import struct

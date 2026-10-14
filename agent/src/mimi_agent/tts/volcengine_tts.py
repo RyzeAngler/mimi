@@ -1,7 +1,5 @@
 """Persistent Volcengine V3 bidirectional TTS connection."""
 
-from __future__ import annotations
-
 import asyncio
 import json
 import logging

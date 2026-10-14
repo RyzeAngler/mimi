@@ -1,7 +1,5 @@
 """Route device events into behavior decisions."""
 
-from __future__ import annotations
-
 from mimi_agent.protocol.messages import PhysicalEvent
 
 from .speech_policy import SpeechDecision, SpeechPolicy

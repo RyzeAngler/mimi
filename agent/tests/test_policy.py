@@ -1,5 +1,5 @@
 from mimi_agent.behavior.speech_policy import SpeechPolicy
-from mimi_agent.protocol.messages import PhysicalEvent
+from mimi_agent.protocol.messages import MotionSummary, PhysicalEvent
 
 
 def event(name: str, behavior: str = "") -> PhysicalEvent:
@@ -31,3 +31,21 @@ def test_same_action_is_cooled_down() -> None:
 
 def test_level_event_is_silent() -> None:
     assert SpeechPolicy().decide(event("level", "calm"), now=10.0) is None
+
+
+def test_stationary_low_confidence_event_is_silent() -> None:
+    stationary = PhysicalEvent(
+        event_id="1",
+        event="shaking",
+        behavior="dizzy",
+        intensity=0.0,
+        summary=MotionSummary(
+            confidence=0.31,
+            motion_duration_ms=0,
+            peak_angular_speed_dps=0.0,
+            peak_dynamic_acceleration_g=0.0,
+            tilt_strength=0.02,
+        ),
+    )
+
+    assert SpeechPolicy().decide(stationary, now=10.0) is None

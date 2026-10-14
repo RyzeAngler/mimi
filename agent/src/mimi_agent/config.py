@@ -1,7 +1,5 @@
 """Environment-backed configuration for the Mimi Agent."""
 
-from __future__ import annotations
-
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -58,6 +56,20 @@ class Settings:
     default_speech_cooldown_ms: int = 2500
     dizzy_speech_cooldown_ms: int = 5000
 
+    runtime_mode: str = "legacy"
+    webui_host: str = "127.0.0.1"
+    webui_port: int = 8090
+    vlm_provider: str = "ollama"
+    vlm_base_url: str = "http://127.0.0.1:11434/v1"
+    vlm_model: str = ""
+    vlm_max_tokens: int = 256
+    vlm_request_timeout_seconds: float = 30.0
+    vlm_video_window_seconds: float = 1.0
+    camera_capture_timeout_seconds: float = 2.0
+    camera_jpeg_quality: float = 0.75
+    camera_max_edge: int = 320
+    camera_frame_rate: float = 4.0
+
     @classmethod
     def from_env(cls) -> "Settings":
         load_dotenv()
@@ -104,7 +116,37 @@ class Settings:
             dizzy_speech_cooldown_ms=_env_int(
                 "MIMI_SPEECH_DIZZY_COOLDOWN_MS", cls.dizzy_speech_cooldown_ms
             ),
+            runtime_mode=os.getenv("MIMI_RUNTIME_MODE", cls.runtime_mode).lower(),
+            webui_host=os.getenv("MIMI_WEBUI_HOST", cls.webui_host),
+            webui_port=_env_int("MIMI_WEBUI_PORT", cls.webui_port),
+            vlm_provider=os.getenv("MIMI_VLM_PROVIDER", cls.vlm_provider).lower(),
+            vlm_base_url=os.getenv("MIMI_VLM_BASE_URL", cls.vlm_base_url).rstrip("/"),
+            vlm_model=os.getenv("MIMI_VLM_MODEL", cls.vlm_model),
+            vlm_max_tokens=_env_int("MIMI_VLM_MAX_TOKENS", cls.vlm_max_tokens),
+            vlm_request_timeout_seconds=_env_float(
+                "MIMI_VLM_REQUEST_TIMEOUT_SECONDS", cls.vlm_request_timeout_seconds
+            ),
+            vlm_video_window_seconds=_env_float(
+                "MIMI_VLM_VIDEO_WINDOW_SECONDS", cls.vlm_video_window_seconds
+            ),
+            camera_capture_timeout_seconds=_env_float(
+                "MIMI_CAMERA_CAPTURE_TIMEOUT_SECONDS",
+                cls.camera_capture_timeout_seconds,
+            ),
+            camera_jpeg_quality=_env_float(
+                "MIMI_CAMERA_JPEG_QUALITY", cls.camera_jpeg_quality
+            ),
+            camera_max_edge=_env_int("MIMI_CAMERA_MAX_EDGE", cls.camera_max_edge),
+            camera_frame_rate=_env_float(
+                "MIMI_CAMERA_FRAME_RATE", cls.camera_frame_rate
+            ),
         )
+
+    def validate_runtime_mode(self) -> None:
+        if self.runtime_mode not in {"legacy", "vlm"}:
+            raise ConfigurationError(
+                "MIMI_RUNTIME_MODE must be either legacy or vlm"
+            )
 
     def validate_tts(self) -> None:
         if not self.volcengine_api_key:
@@ -140,3 +182,35 @@ class Settings:
             raise ConfigurationError("ARK_MAX_TOKENS must be positive")
         if self.ark_context_turns <= 0:
             raise ConfigurationError("ARK_CONTEXT_TURNS must be positive")
+
+    def validate_vlm(self) -> None:
+        if self.vlm_provider not in {"ollama", "llama-server"}:
+            raise ConfigurationError(
+                "MIMI_VLM_PROVIDER must be either ollama or llama-server"
+            )
+        if not self.vlm_model:
+            raise ConfigurationError("Missing VLM configuration: MIMI_VLM_MODEL")
+        if not self.vlm_base_url.startswith(("http://", "https://")):
+            raise ConfigurationError(
+                "MIMI_VLM_BASE_URL must be an http:// or https:// URL"
+            )
+        if self.webui_port <= 0 or self.webui_port > 65535:
+            raise ConfigurationError("MIMI_WEBUI_PORT must be between 1 and 65535")
+        if self.vlm_max_tokens <= 0:
+            raise ConfigurationError("MIMI_VLM_MAX_TOKENS must be positive")
+        if self.vlm_request_timeout_seconds <= 0:
+            raise ConfigurationError("MIMI_VLM_REQUEST_TIMEOUT_SECONDS must be positive")
+        if self.vlm_video_window_seconds <= 0:
+            raise ConfigurationError("MIMI_VLM_VIDEO_WINDOW_SECONDS must be positive")
+        if self.camera_capture_timeout_seconds <= 0:
+            raise ConfigurationError(
+                "MIMI_CAMERA_CAPTURE_TIMEOUT_SECONDS must be positive"
+            )
+        if not 0.1 <= self.camera_jpeg_quality <= 1.0:
+            raise ConfigurationError("MIMI_CAMERA_JPEG_QUALITY must be between 0.1 and 1")
+        if self.camera_max_edge <= 0:
+            raise ConfigurationError("MIMI_CAMERA_MAX_EDGE must be positive")
+        if not 1.0 <= self.camera_frame_rate <= 60.0:
+            raise ConfigurationError(
+                "MIMI_CAMERA_FRAME_RATE must be between 1 and 60"
+            )

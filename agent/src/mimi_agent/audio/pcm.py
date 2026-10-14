@@ -1,7 +1,5 @@
 """Raw PCM contract shared by TTS output and the ESP32 audio player."""
 
-from __future__ import annotations
-
 from collections.abc import Iterator
 from dataclasses import dataclass
 
@@ -45,4 +43,3 @@ def iter_bytes(data: bytes, chunk_size: int = 1024) -> Iterator[bytes]:
         raise ValueError("chunk_size must be positive")
     for offset in range(0, len(data), chunk_size):
         yield data[offset : offset + chunk_size]
-

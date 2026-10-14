@@ -85,11 +85,11 @@ python -m pip install -e '.[dev]'
 cp .env.example .env
 ```
 
-编辑 `agent/.env`，填写：
+默认使用 `legacy` 动作模式。编辑 `agent/.env`，填写：
 
 ```env
 ARK_API_KEY=
-ARK_MODEL=doubao-seed-2-0-mini-260428
+ARK_MODEL=你的已开通模型或推理接入点
 VOLCENGINE_API_KEY=
 VOLCENGINE_RESOURCE_ID=
 VOLCENGINE_VOICE_TYPE=
@@ -108,6 +108,12 @@ Mimi Agent 已启动，监听 ws://0.0.0.0:8765
 ```
 
 保持这个终端运行。另开一个终端重新烧录或按 RESET，让 ESP32 连接 Agent。
+
+### 可选：视觉模式
+
+先部署本地模型服务，在 `.env` 中设置 `MIMI_RUNTIME_MODE=vlm`，并填写 `MIMI_VLM_PROVIDER`、`MIMI_VLM_BASE_URL` 与 `MIMI_VLM_MODEL`。视觉模式不需要 Ark 配置，但仍需要 TTS 配置。启动后打开 `http://localhost:8090`，授权摄像头并点击“立即分析”。
+
+Ollama 使用当前图片；llama-server 使用最近完成的短视频片段，首次分析需等待首段录制完成。没有 ESP32 时可以查看视觉回复，但不会播放语音。完整配置见 [Agent 使用说明](agent/README.md)。
 
 ## 6. 最小验收顺序
 

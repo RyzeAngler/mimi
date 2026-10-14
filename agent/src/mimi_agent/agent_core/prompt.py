@@ -1,7 +1,5 @@
 """Build Mimi prompts from the device's physical event data."""
 
-from __future__ import annotations
-
 import json
 
 from mimi_agent.agent_core.llm import LlmSpeechRequest

@@ -1,7 +1,5 @@
 """Serialized writes for one ESP32 WebSocket connection."""
 
-from __future__ import annotations
-
 import asyncio
 from typing import Any
 
@@ -18,6 +16,79 @@ class DeviceSession:
         self.websocket = websocket
         self.device_id = device_id
         self.send_lock = asyncio.Lock()
+        self._capabilities: set[str] = set()
+        self._speech_ready: dict[str, asyncio.Future[None]] = {}
+        self._speech_playback_end: dict[str, asyncio.Future[None]] = {}
+
+    def configure_capabilities(self, capabilities: object) -> None:
+        if not isinstance(capabilities, list):
+            self._capabilities = set()
+            return
+        self._capabilities = {
+            value for value in capabilities if isinstance(value, str)
+        }
+
+    def prepare_speech_flow(self, speech_id: str) -> bool:
+        required = {"speech_ready", "speech_playback_end"}
+        if not required.issubset(self._capabilities):
+            return False
+        loop = asyncio.get_running_loop()
+        self._speech_ready[speech_id] = loop.create_future()
+        self._speech_playback_end[speech_id] = loop.create_future()
+        return True
+
+    async def wait_speech_ready(self, speech_id: str, timeout: float) -> None:
+        await self._wait_for_signal(self._speech_ready, speech_id, timeout)
+
+    async def wait_speech_playback_end(
+        self,
+        speech_id: str,
+        timeout: float,
+    ) -> None:
+        await self._wait_for_signal(
+            self._speech_playback_end,
+            speech_id,
+            timeout,
+        )
+
+    def mark_speech_ready(self, speech_id: str) -> bool:
+        return self._mark_signal(self._speech_ready, speech_id)
+
+    def mark_speech_playback_end(self, speech_id: str) -> bool:
+        return self._mark_signal(self._speech_playback_end, speech_id)
+
+    def finish_speech_flow(self, speech_id: str) -> None:
+        for waiters in (self._speech_ready, self._speech_playback_end):
+            waiter = waiters.pop(speech_id, None)
+            if waiter is not None and not waiter.done():
+                waiter.cancel()
+
+    def close(self) -> None:
+        speech_ids = set(self._speech_ready) | set(self._speech_playback_end)
+        for speech_id in speech_ids:
+            self.finish_speech_flow(speech_id)
+
+    async def _wait_for_signal(
+        self,
+        waiters: dict[str, asyncio.Future[None]],
+        speech_id: str,
+        timeout: float,
+    ) -> None:
+        waiter = waiters.get(speech_id)
+        if waiter is None:
+            raise RuntimeError(f"语音会话未注册：{speech_id}")
+        await asyncio.wait_for(asyncio.shield(waiter), timeout=timeout)
+
+    def _mark_signal(
+        self,
+        waiters: dict[str, asyncio.Future[None]],
+        speech_id: str,
+    ) -> bool:
+        waiter = waiters.get(speech_id)
+        if waiter is None or waiter.done():
+            return False
+        waiter.set_result(None)
+        return True
 
     async def send_text(self, message: str) -> None:
         async with self.send_lock:

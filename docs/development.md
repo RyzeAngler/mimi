@@ -56,7 +56,7 @@ flowchart TB
 
 | 目录 | 职责 |
 |---|---|
-| `application` | 服务启动、设备会话和 LLM/TTS 编排 |
+| `application` | 按模式组装服务，legacy 流式编排、VLM 串行调度与语音输出 |
 | `agent_core` | LLM 请求模型、system prompt、会话上下文和 Ark 客户端 |
 | `behavior` | 事件键、优先级和冷却策略 |
 | `device` | WebSocket 会话发送锁、设备接入和 PCM 分帧 |
@@ -64,16 +64,24 @@ flowchart TB
 | `audio` | PCM 格式校验 |
 | `tts` | 文本分段、豆包语音双向 WebSocket 和增量 PCM |
 | `observability` | 芯片、LLM 输入输出和语音时序日志 |
+| `vision` | Ollama 图片与 llama-server 图片/视频客户端、响应解析 |
+| `webui` | aiohttp 页面与浏览器 WebSocket、按需图片和短视频采集 |
 
 ## 本地上下文
 
-`ConversationHistory` 以设备连接为边界，默认保存 10 个完成轮次。每次请求都重新生成：
+`legacy` 模式的 `ConversationHistory` 以设备连接为边界，默认保存 10 个完成轮次。每次请求都重新生成：
 
 1. 固定 system prompt；
 2. 最近的 user/assistant 对；
 3. 当前动作的 user prompt。
 
 历史不写入磁盘，不同设备不会共享。断开连接或 Agent 关闭时释放。
+
+## 视觉模式边界
+
+浏览器负责权限、预览、JPEG 抽帧与 MediaRecorder 短视频录制；Agent 合并动作和最近遥测后调用本地模型。当前只支持事件与手动触发，没有周期推理或结构化 JSON 决策。VLM 不保存多轮历史，全局一次处理一个完整交互，忙时仅保留最新传感器事件。
+
+Ollama 无图时允许事件文本推理；llama-server 无视频时终止请求。VLM 失败不自动回退 Ark。两条模型路径均复用豆包 TTS，VLM 输出还等待支持该能力的设备回执。
 
 ## 构建和测试
 
@@ -126,4 +134,7 @@ flowchart LR
 - TTP223 有 pressed/released 日志；
 - Agent 能接收两个连续动作；
 - 语音链路出现 `Speech start`、`Speech end`、`reaction playback complete`；
-- 仓库中没有 `agent/.env`、`network_secrets.h`、日志、音频和缓存。
+- 提交范围不含 `.env`、`network_secrets.h`、日志、音频、缓存、构建产物或私有设计材料；
+- WebUI 摄像头授权、手动分析、设备事件与两种 provider 分别完成实际验证；
+- 区分 TTS 发送完成与设备播放回执，验证连续两次语音；
+- 检查安装包是否包含 `webui/static/index.html`；当前 wheel 尚未包含，源码 editable 安装可用于开发。

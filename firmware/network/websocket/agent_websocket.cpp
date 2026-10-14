@@ -49,6 +49,7 @@ void AgentWebSocket::loop() {
 
   if (speech_end_pending_ && speech_audio_released_ &&
       pcm_player_.poll_drained()) {
+    send_speech_playback_end();
     receiving_speech_ = false;
     speech_audio_released_ = false;
     speech_end_pending_ = false;
@@ -121,6 +122,7 @@ void AgentWebSocket::release_speech_audio() {
     return;
   }
   speech_audio_released_ = true;
+  send_speech_ready();
   if (precommit_audio_length_ > 0) {
     pcm_player_.write(precommit_audio_, precommit_audio_length_);
     precommit_audio_length_ = 0;
@@ -358,24 +360,34 @@ void AgentWebSocket::handle_speech_start(const char* speech_id,
   receiving_speech_ = pcm_player_.start(static_cast<uint32_t>(sample_rate));
   speech_audio_released_ = false;
   speech_end_pending_ = false;
+  speech_start_ready_ = false;
+  speech_start_event_id_ = "";
   speech_end_ready_ = false;
   speech_end_event_id_ = "";
+  playback_end_ready_ = false;
+  playback_end_event_id_ = "";
   precommit_audio_length_ = 0;
   speech_id_ = speech_id == nullptr ? "" : speech_id;
-  speech_event_id_ = event_id == nullptr || event_id[0] == '\0'
-                         ? last_event_id_
-                         : event_id;
-  if (event_id == nullptr || event_id[0] == '\0' ||
-      last_event_id_.equals(event_id)) {
+  const bool has_event_id = event_id != nullptr && event_id[0] != '\0';
+  const bool event_matches = has_event_id && last_event_id_.equals(event_id);
+  speech_event_id_ = has_event_id ? event_id : "";
+  if (event_matches) {
     speech_start_ready_ = receiving_speech_;
     speech_start_event_id_ = speech_event_id_;
+  } else if (receiving_speech_) {
+    // Manual analysis and stale event correlations aren't tied to an active
+    // visual reaction. Release their PCM immediately instead of leaving it in
+    // the small precommit buffer forever.
+    release_speech_audio();
   }
   if (!receiving_speech_) {
     speech_stop_ready_ = true;
     speech_stop_event_id_ = speech_event_id_;
   }
-  Serial.printf("Speech start id=%s rate=%d player=%s\n", speech_id_.c_str(),
-                sample_rate, receiving_speech_ ? "ready" : "offline");
+  Serial.printf("Speech start id=%s rate=%d player=%s mode=%s\n",
+                speech_id_.c_str(), sample_rate,
+                receiving_speech_ ? "ready" : "offline",
+                event_matches ? "event" : "direct");
 }
 
 void AgentWebSocket::handle_speech_end(const char* speech_id) {
@@ -442,12 +454,36 @@ void AgentWebSocket::handle_motion_ack(const char* event_id, bool will_speak) {
                 will_speak ? "yes" : "no");
 }
 
+void AgentWebSocket::send_speech_ready() {
+  if (!connected_ || speech_id_.isEmpty()) {
+    return;
+  }
+  char message[128];
+  snprintf(message, sizeof(message),
+           "{\"type\":\"speech_ready\",\"speech_id\":\"%s\"}",
+           speech_id_.c_str());
+  websocket_.sendTXT(message);
+}
+
+void AgentWebSocket::send_speech_playback_end() {
+  if (!connected_ || speech_id_.isEmpty()) {
+    return;
+  }
+  char message[144];
+  snprintf(
+      message, sizeof(message),
+      "{\"type\":\"speech_playback_end\",\"speech_id\":\"%s\"}",
+      speech_id_.c_str());
+  websocket_.sendTXT(message);
+}
+
 void AgentWebSocket::send_hello() {
-  char message[160];
+  char message[256];
   snprintf(message, sizeof(message),
            "{\"type\":\"hello\",\"device_id\":\"%s\","
            "\"protocol\":\"mimi.v1\",\"audio\":{\"format\":\"pcm_s16le\","
-           "\"sample_rate\":16000,\"channels\":1}}",
+           "\"sample_rate\":16000,\"channels\":1},"
+           "\"capabilities\":[\"speech_ready\",\"speech_playback_end\"]}",
            device_id_.c_str());
   websocket_.sendTXT(message);
 }

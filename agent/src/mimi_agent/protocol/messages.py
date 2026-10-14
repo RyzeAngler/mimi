@@ -1,7 +1,5 @@
 """Typed message values at the Agent/device boundary."""
 
-from __future__ import annotations
-
 import time
 from dataclasses import dataclass
 from typing import Any

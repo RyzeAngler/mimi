@@ -1,0 +1,484 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Mimi VLM 控制台</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        background: #111318;
+        color: #f4f5f7;
+      }
+      * { box-sizing: border-box; }
+      body { margin: 0; min-width: 320px; background: radial-gradient(circle at top right, #283047, #111318 52%); }
+      main { width: min(1120px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 48px; }
+      header { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 22px; }
+      h1 { margin: 0; font-size: clamp(24px, 4vw, 38px); letter-spacing: -0.03em; }
+      p { color: #aeb5c4; }
+      .eyebrow { margin: 0 0 7px; color: #8eb5ff; font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; }
+      .grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(320px, .75fr); gap: 16px; }
+      .card { border: 1px solid #303644; border-radius: 18px; padding: 18px; background: rgba(25, 28, 36, .88); box-shadow: 0 18px 50px rgba(0,0,0,.18); }
+      .status-card { display: flex; flex-direction: column; min-height: 100%; }
+      .status-card h2 { margin: 0; }
+      .video-wrap { overflow: hidden; aspect-ratio: 4 / 3; border-radius: 13px; background: #08090c; }
+      video { display: block; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+      .actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 14px; }
+      button { border: 0; border-radius: 10px; padding: 10px 13px; color: #111318; background: #9fc0ff; cursor: pointer; font-weight: 700; }
+      button.secondary { color: #e5e8ef; background: #303746; }
+      button:disabled { cursor: not-allowed; opacity: .45; }
+      .status-row { display: flex; align-items: center; gap: 9px; margin-bottom: 13px; }
+      .dot { width: 10px; height: 10px; border-radius: 50%; background: #777f8d; }
+      .dot.good { background: #54d59a; box-shadow: 0 0 14px #54d59a; }
+      .dot.bad { background: #ff756f; }
+      dl { display: grid; grid-template-columns: 125px 1fr; gap: 9px 14px; margin: 0; font-size: 14px; }
+      dt { color: #929bab; }
+      dd { margin: 0; overflow-wrap: anywhere; color: #eef0f5; }
+      pre { min-height: 80px; margin: 0; padding: 13px; overflow: auto; border-radius: 10px; background: #0c0e13; color: #dce4f4; white-space: pre-wrap; }
+      .reply-section, .sensor-section { margin-top: 24px; padding-top: 20px; border-top: 1px solid #303644; }
+      .reply-section h2, .sensor-section h2 { margin-bottom: 10px; }
+      #content { min-height: 150px; font-size: 18px; line-height: 1.7; }
+      #sensor { max-height: 190px; overflow: auto; padding: 11px; }
+      .sensor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px 14px; font-size: 12px; line-height: 1.35; }
+      .sensor-item { display: grid; grid-template-columns: 66px minmax(0, 1fr); gap: 6px; min-width: 0; }
+      .sensor-item dt { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .sensor-item dd { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .label { margin: 0 0 7px; color: #929bab; font-size: 12px; }
+      .muted { color: #929bab; }
+      @media (max-width: 760px) { main { width: min(100% - 20px, 600px); padding-top: 18px; } header { display: block; } .grid { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <p class="eyebrow">Mimi · 本地视觉主控</p>
+          <h1>视觉主控控制台</h1>
+        </div>
+        <div id="socket-status" class="status-row"><span class="dot"></span><span>连接中</span></div>
+      </header>
+
+      <section class="grid">
+        <article class="card">
+          <div class="status-row"><span id="camera-dot" class="dot"></span><strong id="camera-status">摄像头未启动</strong></div>
+          <div class="video-wrap"><video id="video" autoplay playsinline muted></video></div>
+          <canvas id="canvas" hidden></canvas>
+          <div class="actions">
+            <button id="start-camera">启动摄像头</button>
+            <button id="stop-camera" class="secondary" disabled>停止摄像头</button>
+            <button id="manual-analyze" class="secondary" disabled>立即分析</button>
+          </div>
+          <p id="camera-help" class="muted">请点击“启动摄像头”，浏览器会申请本机摄像头权限。</p>
+        </article>
+
+        <article class="card status-card">
+          <h2>运行状态</h2>
+          <dl>
+            <dt>主控状态</dt><dd id="agent-state">正在启动</dd>
+            <dt>设备状态</dt><dd id="device-state">未连接</dd>
+            <dt>触发来源</dt><dd id="trigger">—</dd>
+            <dt>模型耗时</dt><dd id="latency">暂无</dd>
+            <dt>语音播放</dt><dd id="tts-state">空闲</dd>
+          </dl>
+          <section class="reply-section">
+            <h2>Mimi 回复</h2>
+            <pre id="content">等待模型输出</pre>
+          </section>
+          <section class="sensor-section">
+            <h2>最近传感器数据</h2>
+            <div id="sensor" class="sensor-grid"><div class="muted">暂无数据</div></div>
+          </section>
+        </article>
+      </section>
+    </main>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const video = $("video");
+      const canvas = $("canvas");
+      let stream = null;
+      let socket = null;
+      let reconnectTimer = null;
+      let mediaRecorder = null;
+      let videoRecorderState = null;
+      let videoRotationTimer = null;
+      let videoRotationPromise = null;
+      let lastVideoSegment = null;
+      let videoMimeType = "video/webm";
+      let cameraMaxEdge = 320;
+      let cameraFrameRate = 4;
+      let cameraJpegQuality = 0.75;
+      let videoWindowSeconds = 1;
+
+      const AGENT_STATE_LABELS = {
+        starting: "正在启动",
+        idle: "空闲",
+        waiting_for_frame: "等待摄像头画面",
+        inference_running: "模型推理中",
+        cancelled: "已取消",
+        error: "发生错误",
+      };
+      const TRIGGER_LABELS = {
+        sensor_event: "传感器事件",
+        telemetry: "传感器数据",
+        manual: "手动分析",
+      };
+      const TTS_STATE_LABELS = {
+        idle: "空闲",
+        starting: "准备播放",
+        completed: "播放完成",
+        sent_unconfirmed: "已发送，设备未确认",
+        error: "播放失败",
+        skipped_no_device: "无设备，未播放",
+      };
+      const CAMERA_STATE_LABELS = {
+        ready: "摄像头已就绪",
+        offline: "摄像头未就绪",
+        error: "摄像头异常",
+      };
+      const SENSOR_STATE_LABELS = {
+        level: "水平",
+        tilt_left: "左倾",
+        tilt_right: "右倾",
+        tilt_forward: "前倾",
+        tilt_backward: "后倾",
+        shaking: "摇晃",
+      };
+      const SENSOR_BEHAVIOR_LABELS = {
+        calm: "平静",
+        happy: "开心",
+        curious: "好奇",
+        excited: "兴奋",
+        dizzy: "眩晕",
+        sleepy: "困倦",
+      };
+      const SENSOR_EVENT_LABELS = {
+        touch: "触摸",
+        tilt_left: "左倾",
+        tilt_right: "右倾",
+        tilt_forward: "前倾",
+        tilt_backward: "后倾",
+        shaking: "摇晃",
+      };
+      const CAMERA_ERROR_LABELS = {
+        camera_offline: "摄像头未就绪",
+        permission_denied: "未获得摄像头权限",
+        NotAllowedError: "未获得摄像头权限",
+        NotFoundError: "未找到摄像头",
+        NotReadableError: "摄像头正被其他程序占用",
+        OverconstrainedError: "摄像头不支持当前参数",
+        SecurityError: "浏览器禁止访问摄像头",
+        video_buffer_empty: "视频缓冲未就绪，请等待几秒",
+        video_recording_error: "视频缓冲失败",
+        stopped: "摄像头已停止",
+      };
+
+      function stateLabel(labels, value, fallback = "未知状态") {
+        return labels[value] || fallback;
+      }
+
+      function formatSensorNumber(value, digits = 2) {
+        const number = Number(value);
+        return Number.isFinite(number) ? number.toFixed(digits) : "—";
+      }
+
+      function formatSensorValue(value) {
+        if (typeof value === "boolean") return value ? "已触发" : "未触发";
+        return value === undefined || value === null || value === "" ? "—" : String(value);
+      }
+
+      function sensorLabel(labels, value) {
+        if (value === undefined || value === null || value === "") return "—";
+        return labels[value] || String(value);
+      }
+
+      function renderSensor(message) {
+        const source = message.telemetry || message.event || {};
+        const summary = source.summary || source;
+        const rows = [
+          ["姿态", sensorLabel(SENSOR_STATE_LABELS, source.state)],
+          ["行为", sensorLabel(SENSOR_BEHAVIOR_LABELS, source.behavior)],
+          ["动作", sensorLabel(SENSOR_EVENT_LABELS, source.event)],
+          ["触摸", source.touch_active],
+          ["加速度", [source.accel_x_g, source.accel_y_g, source.accel_z_g].map((value) => formatSensorNumber(value)).join(" / ")],
+          ["陀螺仪", [source.gyro_x_dps, source.gyro_y_dps, source.gyro_z_dps].map((value) => formatSensorNumber(value)).join(" / ")],
+          ["横滚", `${formatSensorNumber(summary.roll_deg)}°`],
+          ["俯仰", `${formatSensorNumber(summary.pitch_deg)}°`],
+          ["运动强度", formatSensorNumber(summary.motion_intensity ?? source.intensity)],
+          ["稳定性", formatSensorNumber(summary.stability)],
+          ["峰值角速度", `${formatSensorNumber(summary.peak_angular_speed_dps)}°/s`],
+          ["状态持续", `${formatSensorValue(summary.state_duration_ms)} ms`],
+          ["置信度", formatSensorNumber(summary.confidence)],
+        ];
+        const sensor = $("sensor");
+        sensor.replaceChildren();
+        rows.forEach(([label, value]) => {
+          const item = document.createElement("div");
+          item.className = "sensor-item";
+          const name = document.createElement("dt");
+          name.textContent = label;
+          const valueElement = document.createElement("dd");
+          valueElement.textContent = formatSensorValue(value);
+          item.append(name, valueElement);
+          sensor.append(item);
+        });
+      }
+
+      function setSocket(online, label) {
+        $("socket-status").innerHTML = `<span class="dot ${online ? "good" : "bad"}"></span><span>${label}</span>`;
+      }
+
+      function send(payload) {
+        if (socket && socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(payload));
+      }
+
+      function clearReply() {
+        $("content").textContent = "";
+      }
+
+      function startVideoRecorder() {
+        if (!window.MediaRecorder) throw new Error("当前浏览器不支持视频录制");
+        if (videoRecorderState && videoRecorderState.recorder.state !== "inactive") return;
+        const mimeTypes = [
+          "video/mp4",
+          "video/webm;codecs=vp9",
+          "video/webm;codecs=vp8",
+          "video/webm",
+        ];
+        const selectedMimeType = mimeTypes.find((type) => MediaRecorder.isTypeSupported(type));
+        const recorder = selectedMimeType
+          ? new MediaRecorder(stream, { mimeType: selectedMimeType })
+          : new MediaRecorder(stream);
+        videoMimeType = recorder.mimeType || selectedMimeType || "video/webm";
+        const state = {
+          recorder,
+          chunks: [],
+          mimeType: videoMimeType,
+        };
+        videoRecorderState = state;
+        mediaRecorder = recorder;
+        recorder.ondataavailable = (event) => {
+          if (!event.data || event.data.size === 0) return;
+          state.chunks.push(event.data);
+        };
+        recorder.onerror = () => {
+          send({ type: "camera_error", code: "video_recording_error", message: "视频缓冲失败" });
+        };
+        recorder.start(250);
+        clearTimeout(videoRotationTimer);
+        videoRotationTimer = setTimeout(() => {
+          rotateVideoSegment().catch(() => {
+            send({ type: "camera_error", code: "video_recording_error", message: "视频缓冲失败" });
+          });
+        }, Math.max(1, videoWindowSeconds) * 1000);
+      }
+
+      function stopVideoRecorder(state) {
+        return new Promise((resolve) => {
+          let settled = false;
+          const finish = () => {
+            if (settled) return;
+            settled = true;
+            state.recorder.removeEventListener("stop", finish);
+            resolve(state.chunks.slice());
+          };
+          state.recorder.addEventListener("stop", finish, { once: true });
+          try {
+            state.recorder.stop();
+          } catch {
+            finish();
+          }
+        });
+      }
+
+      function rotateVideoSegment() {
+        if (videoRotationPromise) return videoRotationPromise;
+        videoRotationPromise = (async () => {
+          clearTimeout(videoRotationTimer);
+          videoRotationTimer = null;
+          const state = videoRecorderState;
+          if (!state) return;
+          videoRecorderState = null;
+          const chunks = await stopVideoRecorder(state);
+          if (chunks.length > 0) {
+            const blob = new Blob(chunks, { type: state.mimeType });
+            if (blob.size > 0) {
+              lastVideoSegment = { blob, mimeType: state.mimeType };
+            }
+          }
+          if (stream) startVideoRecorder();
+        })().finally(() => {
+          videoRotationPromise = null;
+        });
+        return videoRotationPromise;
+      }
+
+      async function sendVideoClip(request) {
+        if (!videoRecorderState && !videoRotationPromise && !lastVideoSegment) {
+          send({ type: "camera_error", code: "camera_offline", message: "视频缓冲未就绪" });
+          return;
+        }
+        await rotateVideoSegment();
+        const segment = lastVideoSegment;
+        if (!segment || !segment.blob.size) {
+          send({
+            type: "camera_video_unavailable",
+            request_id: request.request_id,
+            reason: "video_buffer_empty",
+          });
+          return;
+        }
+        const buffer = await segment.blob.arrayBuffer();
+        if (!socket || socket.readyState !== WebSocket.OPEN) return;
+        const format = segment.mimeType.includes("mp4") ? "mp4" : "auto";
+        socket.send(JSON.stringify({
+          type: "camera_video_meta",
+          request_id: request.request_id,
+          format,
+          mime_type: segment.mimeType,
+          byte_length: buffer.byteLength,
+        }));
+        socket.send(buffer);
+      }
+
+      function renderInferenceResult(message) {
+        if (typeof message.content === "string") {
+          $("content").textContent = message.content || "（无输出）";
+        }
+        if (Number.isFinite(message.latency_ms)) {
+          $("latency").textContent = `${message.latency_ms} 毫秒`;
+        }
+        if (message.trigger) {
+          $("trigger").textContent = stateLabel(TRIGGER_LABELS, message.trigger, "未知触发");
+        }
+      }
+
+      function connect() {
+        const protocol = location.protocol === "https:" ? "wss" : "ws";
+        socket = new WebSocket(`${protocol}://${location.host}/ws`);
+        socket.onopen = () => {
+          setSocket(true, "Agent 已连接");
+          if (stream) send({ type: "camera_ready", width: video.videoWidth, height: video.videoHeight });
+        };
+        socket.onclose = () => {
+          setSocket(false, "Agent 已断开");
+          clearTimeout(reconnectTimer);
+          reconnectTimer = setTimeout(connect, 1500);
+        };
+        socket.onerror = () => setSocket(false, "连接异常");
+        socket.onmessage = (event) => handleMessage(JSON.parse(event.data));
+      }
+
+      function handleMessage(message) {
+        if (message.type === "capture_request") {
+          if (!stream || video.readyState < 2) {
+            send({ type: "camera_error", code: "camera_offline", message: "摄像头未就绪" });
+            return;
+          }
+          const scale = Math.min(1, cameraMaxEdge / Math.max(video.videoWidth, video.videoHeight));
+          canvas.width = Math.max(1, Math.round(video.videoWidth * scale));
+          canvas.height = Math.max(1, Math.round(video.videoHeight * scale));
+          canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+          send({ type: "camera_frame", request_id: message.request_id, image: canvas.toDataURL("image/jpeg", cameraJpegQuality) });
+        } else if (message.type === "capture_video_request") {
+          sendVideoClip(message).catch(() => {
+            send({
+              type: "camera_video_unavailable",
+              request_id: message.request_id,
+              reason: "video_recording_error",
+            });
+          });
+        } else if (message.type === "camera_state") {
+          const ready = message.camera === "ready";
+          $("camera-status").textContent = stateLabel(
+            CAMERA_STATE_LABELS,
+            ready ? "ready" : (message.code || message.camera),
+            "摄像头异常",
+          );
+          $("camera-dot").className = `dot ${ready ? "good" : "bad"}`;
+        } else if (message.type === "agent_state") {
+          $("agent-state").textContent = stateLabel(AGENT_STATE_LABELS, message.state);
+          if (message.state === "waiting_for_frame" || message.state === "inference_running") {
+            clearReply();
+          }
+          if (typeof message.content === "string") renderInferenceResult(message);
+          if (Number.isFinite(message.camera_max_edge)) cameraMaxEdge = message.camera_max_edge;
+          if (Number.isFinite(message.camera_frame_rate)) cameraFrameRate = message.camera_frame_rate;
+          if (Number.isFinite(message.camera_jpeg_quality)) cameraJpegQuality = message.camera_jpeg_quality;
+          if (Number.isFinite(message.video_window_seconds)) videoWindowSeconds = message.video_window_seconds;
+        } else if (message.type === "sensor_update") {
+          $("device-state").textContent = "已连接";
+          renderSensor(message);
+        } else if (message.type === "inference_started") {
+          clearReply();
+          $("agent-state").textContent = stateLabel(AGENT_STATE_LABELS, "inference_running");
+          $("trigger").textContent = stateLabel(TRIGGER_LABELS, message.trigger, "未知触发");
+        } else if (message.type === "inference_result") {
+          $("agent-state").textContent = stateLabel(AGENT_STATE_LABELS, "idle");
+          renderInferenceResult(message);
+        } else if (message.type === "tts_state") {
+          $("tts-state").textContent = stateLabel(TTS_STATE_LABELS, message.state);
+        } else if (message.type === "inference_error") {
+          $("agent-state").textContent = stateLabel(AGENT_STATE_LABELS, "error");
+          $("trigger").textContent = stateLabel(TRIGGER_LABELS, message.trigger, "未知触发");
+          $("content").textContent = message.message || "模型处理失败，请查看 Agent 日志。";
+        }
+      }
+
+      $("start-camera").onclick = async () => {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({
+            video: {
+              width: { ideal: cameraMaxEdge, max: cameraMaxEdge },
+              height: {
+                ideal: Math.round(cameraMaxEdge * 0.75),
+                max: cameraMaxEdge,
+              },
+              frameRate: { ideal: cameraFrameRate, max: cameraFrameRate },
+            },
+            audio: false,
+          });
+          video.srcObject = stream;
+          await video.play();
+          lastVideoSegment = null;
+          startVideoRecorder();
+          $("start-camera").disabled = true;
+          $("stop-camera").disabled = false;
+          $("manual-analyze").disabled = false;
+          $("camera-help").textContent = `正在录制约 ${videoWindowSeconds} 秒视频；Agent 请求时发送完整片段、${cameraMaxEdge}px、${cameraFrameRate}fps 视频。`;
+          send({ type: "camera_ready", width: video.videoWidth, height: video.videoHeight });
+        } catch (error) {
+          const cameraError = CAMERA_ERROR_LABELS[error.name] || "摄像头不可用";
+          send({ type: "camera_error", code: error.name || "permission_denied", message: cameraError });
+          $("camera-status").textContent = cameraError;
+          $("camera-dot").className = "dot bad";
+          $("camera-help").textContent = `摄像头不可用：${cameraError}`;
+        }
+      };
+
+      $("stop-camera").onclick = () => {
+        clearTimeout(videoRotationTimer);
+        videoRotationTimer = null;
+        if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
+        mediaRecorder = null;
+        videoRecorderState = null;
+        videoRotationPromise = null;
+        lastVideoSegment = null;
+        if (stream) stream.getTracks().forEach((track) => track.stop());
+        stream = null;
+        video.srcObject = null;
+        $("start-camera").disabled = false;
+        $("stop-camera").disabled = true;
+        $("manual-analyze").disabled = true;
+        send({ type: "camera_error", code: "stopped", message: "摄像头已停止" });
+      };
+
+      $("manual-analyze").onclick = () => {
+        clearReply();
+        send({ type: "manual_analyze" });
+      };
+      connect();
+    </script>
+  </body>
+</html>

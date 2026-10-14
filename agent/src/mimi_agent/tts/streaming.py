@@ -1,7 +1,5 @@
 """Helpers for preserving the first-audio streaming boundary."""
 
-from __future__ import annotations
-
 from collections.abc import AsyncIterator, Awaitable, Callable
 
 from mimi_agent.audio.pcm import PcmFormat, validate_pcm_chunk
